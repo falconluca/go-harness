@@ -32,7 +32,6 @@ func (e *AgentEngine) Run(c context.Context, userPrompt string) error {
 	log.Printf("[Engine] 引擎启动，锁定工作区：%s\n", e.WorkDir)
 	log.Printf("[Engine] 慢思考模型：%v\n", e.EnableThinking)
 
-	// 1. 初始化会话上下文
 	contextHistory := []schema.Message{
 		{
 			Role:    schema.RoleSystem,

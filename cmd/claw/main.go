@@ -11,21 +11,20 @@ import (
 )
 
 func main() {
-	// 确保已设置 ZHIPU_API_KEY
 	if os.Getenv("ZHIPU_API_KEY") == "" {
 		log.Fatal("请先导出 ZHIPU_API_KEY 环境变量")
 	}
 	workDir, _ := os.Getwd()
 
-	p := provider.NewZhipuClaudeProvider("glm-5.1")
+	p := provider.NewZhipuOpenAIProvider("deepseek-v4-flash")
 
-	r := &tools.MockRegistry{}
+	r := tools.NewRegistry()
+	readFileTool := tools.NewReadFileTool(workDir)
+	r.Register(readFileTool)
 
-	// 组装并启动核心 Engine
 	eng := engine.NewAgentEngine(p, r, workDir, true)
 
-	// 设定测试任务
-	prompt := "我想去北京跑步，帮我查查天气适合吗？"
+	prompt := "请调用工具读取一下当前工作区目录下 hello.txt 文件的内容，并用一句话向我总结它说了什么。"
 
 	err := eng.Run(context.Background(), prompt)
 	if err != nil {

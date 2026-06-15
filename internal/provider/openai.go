@@ -24,7 +24,7 @@ func NewZhipuOpenAIProvider(model string) *OpenAIProvider {
 		panic("请设置 ZHIPU_API_KEY 环境变量")
 	}
 
-	baseURL := "https://open.bigmodel.cn/api/paas/v4/"
+	baseURL := "https://api.deepseek.com"
 
 	client := openai.NewClient(
 		option.WithAPIKey(apiKey),
