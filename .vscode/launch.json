@@ -1,0 +1,15 @@
+{
+  // Go 程序调试配置。按 F5 启动。
+  // 文档: https://github.com/golang/vscode-go/blob/master/docs/debugging.md
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug claw",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/cmd/claw",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
