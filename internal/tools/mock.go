@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"log"
 
 	"github.com/falconluca/go-harness/internal/schema"
 )
@@ -9,14 +10,28 @@ import (
 type MockRegistry struct{}
 
 func (m *MockRegistry) GetAvailableTools() []schema.ToolDefinition {
-	// 为了让 Phase 2 能检测到工具，这里返回一个伪造的工具定义数组
-	return []schema.ToolDefinition{{Name: "bash"}}
+	return []schema.ToolDefinition{
+		{
+			Name:        "get_weather",
+			Description: "获取指定城市的当前天气情况。",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"city": map[string]interface{}{
+						"type": "string",
+					},
+				},
+				"required": []string{"city"},
+			},
+		},
+	}
 }
 
 func (m *MockRegistry) Execute(ctx context.Context, call schema.ToolCall) schema.ToolResult {
+	log.Printf("  -> [Mock 工具执行] 获取 %s 的天气中...\n", call.Name)
 	return schema.ToolResult{
 		ToolCallID: call.ID,
-		Output:     "-rw-r--r--  1 user group  234 Oct 24 10:00 main.go\n",
+		Output:     "API 返回：今天是晴天，气温 25 度。",
 		IsError:    false,
 	}
 }
