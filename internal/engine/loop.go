@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 
 	"github.com/falconluca/go-harness/internal/provider"
 	"github.com/falconluca/go-harness/internal/schema"
@@ -79,21 +80,36 @@ func (e *AgentEngine) Run(c context.Context, userPrompt string) error {
 			break
 		}
 
-		for _, toolCall := range actionResp.ToolCalls {
-			log.Printf("[Engine] 🔧 Acting: %s, 参数: %s\n", toolCall.Name, string(toolCall.Arguments))
+		var wg sync.WaitGroup
+		observationMsgs := make([]schema.Message, len(actionResp.ToolCalls))
 
-			result := e.registry.Execute(c, toolCall)
+		for i, toolCall := range actionResp.ToolCalls {
+			wg.Add(1) // 增加计数器
 
-			if result.IsError {
-				log.Printf("[Engine] ❌ 工具执行报错：%s\n", result.Output)
-			}
+			go func(idx int, call schema.ToolCall) {
+				defer wg.Done()
 
-			observationMsg := schema.Message{
-				Role:       schema.RoleUser,
-				Content:    result.Output,
-				ToolCallID: toolCall.ID,
-			}
-			contextHistory = append(contextHistory, observationMsg)
+				log.Printf("[Engine] 🔧 Acting: %s, 参数: %s\n", toolCall.Name, string(toolCall.Arguments))
+
+				result := e.registry.Execute(c, toolCall)
+
+				if result.IsError {
+					log.Printf("[Engine] ❌ 工具执行报错：%s\n", result.Output)
+				}
+
+				observationMsg := schema.Message{
+					Role:       schema.RoleUser,
+					Content:    result.Output,
+					ToolCallID: toolCall.ID,
+				}
+				observationMsgs[idx] = observationMsg
+			}(i, toolCall)
+		}
+
+		wg.Wait()
+
+		for _, obs := range observationMsgs {
+			contextHistory = append(contextHistory, obs)
 		}
 	}
 	return nil
