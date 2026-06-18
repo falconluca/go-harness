@@ -1,13 +1,15 @@
 package main
 
 import (
-	"context"
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/falconluca/go-harness/internal/engine"
+	"github.com/falconluca/go-harness/internal/feishu"
 	"github.com/falconluca/go-harness/internal/provider"
 	"github.com/falconluca/go-harness/internal/tools"
+	"github.com/larksuite/oapi-sdk-go/v3/core/httpserverext"
 )
 
 func main() {
@@ -27,13 +29,18 @@ func main() {
 
 	eng := engine.NewAgentEngine(p, r, workDir, true)
 
-	prompt := `
-    我当前目录下有 a.txt, b.txt, c.txt 三个文件。
-    为了节省时间，请你同时一次性读取这三个文件，并将它们的内容综合起来，告诉我它们分别记录了什么领域的信息。
-    `
+	// 2. 初始化飞书 Bot 调度器
+	bot := feishu.NewFeishuBot(eng)
+	handler := httpserverext.NewEventHandlerFunc(bot.GetEventDispatcher())
 
-	err := eng.Run(context.Background(), prompt)
+	// 3. 注册路由并启动 HTTP 服务
+	http.HandleFunc("/webhook/event", handler)
+
+	port := ":48080"
+	log.Printf("飞书服务端已启动，正在监听 %s 端口\n", port)
+
+	err := http.ListenAndServe(port, nil)
 	if err != nil {
-		log.Fatalf("引擎崩溃: %v", err)
+		log.Fatalf("服务器启动失败: %v", err)
 	}
 }
