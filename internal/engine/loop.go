@@ -53,10 +53,6 @@ func (e *AgentEngine) Run(c context.Context, userPrompt string, reporter Reporte
 		availableTools := e.registry.GetAvailableTools()
 
 		if e.EnableThinking {
-			if reporter != nil {
-				reporter.OnThinking(c)
-			}
-
 			thinkResp, err := e.provider.Generate(c, contextHistory, nil)
 			if err != nil {
 				return fmt.Errorf("[Engine] 思考阶段生成失败：%w", err)
@@ -65,6 +61,11 @@ func (e *AgentEngine) Run(c context.Context, userPrompt string, reporter Reporte
 			if thinkResp.Content != "" {
 				log.Printf("[Engine] 🧠 Thinking... %s\n", thinkResp.Content)
 				contextHistory = append(contextHistory, *thinkResp)
+
+				// 【触发 Reporter】: 将思考过程输出到外部（如飞书折叠面板）
+				if reporter != nil {
+					reporter.OnThinking(c, thinkResp.Content)
+				}
 			}
 		}
 

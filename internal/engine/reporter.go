@@ -5,8 +5,8 @@ import "context"
 // Reporter 定义了 Agent 引擎向外界输出信息的规范。
 // 这使得引擎可以无缝切换终端 (CLI)、飞书、钉钉甚至 WebUI 等不同的展现层。
 type Reporter interface {
-	// OnThinking 当模型开始进行慢思考 (Reasoning) 时调用
-	OnThinking(ctx context.Context)
+	// OnThinking 当模型完成慢思考 (Reasoning) 并产出思考内容时调用
+	OnThinking(ctx context.Context, content string)
 
 	// OnToolCall 当模型决定并发调用工具时调用
 	OnToolCall(ctx context.Context, toolName string, args string)

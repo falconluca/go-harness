@@ -117,9 +117,61 @@ func (r *FeishuReporter) sendMsg(text string) {
 	_, _ = r.client.Im.Message.Create(context.Background(), msgReq)
 }
 
-func (r *FeishuReporter) OnThinking(ctx context.Context) {
-	// 仅发一个轻量级提示，避免飞书刷屏
-	r.sendMsg("🤔 模型正在慢思考 (Thinking)...")
+// sendCard 封装了调用飞书 OpenAPI 发送交互式卡片 (Interactive) 的操作
+// card 为飞书卡片 JSON 结构（顶层含 elements），序列化后作为消息内容发送。
+func (r *FeishuReporter) sendCard(card map[string]any) {
+	contentBytes, _ := json.Marshal(card)
+
+	msgReq := larkim.NewCreateMessageReqBuilder().
+		ReceiveIdType(larkim.CreateMessageV1ReceiveIDTypeChatId).
+		Body(larkim.NewCreateMessageReqBodyBuilder().
+			ReceiveId(r.chatId).
+			MsgType(larkim.MsgTypeInteractive).
+			Content(string(contentBytes)).
+			Build()).
+		Build()
+
+	_, _ = r.client.Im.Message.Create(context.Background(), msgReq)
+}
+
+func (r *FeishuReporter) OnThinking(ctx context.Context, content string) {
+	// 将模型思考过程以"默认折叠"的面板形式发到飞书，避免刷屏，点击即可展开查看。
+	r.sendCard(map[string]any{
+		"elements": []map[string]any{
+			{
+				"tag":              "collapsible_panel",
+				"expanded":         false,
+				"background_color": "grey",
+				"header": map[string]any{
+					"title": map[string]any{
+						"tag":     "markdown",
+						"content": "**🧠 模型思考过程**",
+					},
+					"vertical_align": "center",
+					"icon": map[string]any{
+						"tag":   "standard_icon",
+						"token": "down-small-ccm_outlined",
+						"color": "grey",
+						"size":  "16px 16px",
+					},
+					"icon_position":       "right",
+					"icon_expanded_angle": -180,
+				},
+				"border": map[string]any{
+					"color":         "grey",
+					"corner_radius": "5px",
+				},
+				"vertical_spacing": "8px",
+				"padding":          "8px 8px 8px 8px",
+				"elements": []map[string]any{
+					{
+						"tag":     "markdown",
+						"content": content,
+					},
+				},
+			},
+		},
+	})
 }
 
 func (r *FeishuReporter) OnToolCall(ctx context.Context, toolName string, args string) {
