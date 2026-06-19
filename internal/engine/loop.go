@@ -9,6 +9,8 @@ import (
 	"github.com/falconluca/go-harness/internal/provider"
 	"github.com/falconluca/go-harness/internal/schema"
 	"github.com/falconluca/go-harness/internal/tools"
+
+	ctxpkg "github.com/falconluca/go-harness/internal/context"
 )
 
 type AgentEngine struct {
@@ -17,6 +19,8 @@ type AgentEngine struct {
 
 	WorkDir        string
 	EnableThinking bool
+
+	composer *ctxpkg.PromptComposer
 }
 
 func NewAgentEngine(p provider.LLMProvider, r tools.Registry,
@@ -26,6 +30,7 @@ func NewAgentEngine(p provider.LLMProvider, r tools.Registry,
 		registry:       r,
 		WorkDir:        workDir,
 		EnableThinking: enableThinking,
+		composer:       ctxpkg.NewPromptComposer(workDir),
 	}
 }
 
@@ -33,11 +38,10 @@ func (e *AgentEngine) Run(c context.Context, userPrompt string, reporter Reporte
 	log.Printf("[Engine] 引擎启动，锁定工作区：%s\n", e.WorkDir)
 	log.Printf("[Engine] 慢思考模型：%v\n", e.EnableThinking)
 
+	systemMsg := e.composer.Build()
+
 	contextHistory := []schema.Message{
-		{
-			Role:    schema.RoleSystem,
-			Content: "你是一个智能助手，协助用户完成任务。",
-		},
+		systemMsg,
 		{
 			Role:    schema.RoleUser,
 			Content: userPrompt,
