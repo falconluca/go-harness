@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/falconluca/go-harness/internal/engine"
+	"github.com/falconluca/go-harness/internal/schema"
 	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 
@@ -81,8 +82,14 @@ func (b *FeishuBot) handleAgentRun(chatId string, prompt string) {
 		chatId: chatId,
 	}
 
+	session := engine.GlobalSessionMgr.GetOrCreate("go-harness", "/tmp/go-harness")
+	session.Append(schema.Message{
+		Role:    schema.RoleUser,
+		Content: prompt,
+	})
+
 	// 启动引擎！
-	err := b.engine.Run(context.Background(), prompt, reporter)
+	err := b.engine.Run(context.Background(), session, reporter)
 	if err != nil {
 		reporter.sendMsg(fmt.Sprintf("❌ Agent 运行崩溃: %v", err))
 	}

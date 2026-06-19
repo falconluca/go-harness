@@ -31,6 +31,14 @@ type ToolResult struct {
 	IsError    bool   `json:"is_error"`
 }
 
+func (r *ToolResult) DisplayOutput() string {
+	displayOutput := r.Output
+	if len(displayOutput) > 200 {
+		displayOutput = displayOutput[:200] + "... (已截断)"
+	}
+	return displayOutput
+}
+
 type ToolDefinition struct {
 	Name        string      `json:"name"`
 	Description string      `json:"description"`

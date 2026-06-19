@@ -14,13 +14,9 @@ import (
 )
 
 type AgentEngine struct {
-	provider provider.LLMProvider
-	registry tools.Registry
-
-	WorkDir        string
+	provider       provider.LLMProvider
+	registry       tools.Registry
 	EnableThinking bool
-
-	composer *ctxpkg.PromptComposer
 }
 
 func NewAgentEngine(p provider.LLMProvider, r tools.Registry,
@@ -28,25 +24,20 @@ func NewAgentEngine(p provider.LLMProvider, r tools.Registry,
 	return &AgentEngine{
 		provider:       p,
 		registry:       r,
-		WorkDir:        workDir,
 		EnableThinking: enableThinking,
-		composer:       ctxpkg.NewPromptComposer(workDir),
 	}
 }
 
-func (e *AgentEngine) Run(c context.Context, userPrompt string, reporter Reporter) error {
-	log.Printf("[Engine] 引擎启动，锁定工作区：%s\n", e.WorkDir)
+func (e *AgentEngine) Run(c context.Context, session *Session, reporter Reporter) error {
+	if reporter == nil {
+		return fmt.Errorf("[Engine] Reporter 不能为空")
+	}
+
+	log.Printf("[Engine] 引擎启动，锁定工作区：%s\n", session.WorkDir)
 	log.Printf("[Engine] 慢思考模型：%v\n", e.EnableThinking)
 
-	systemMsg := e.composer.Build()
-
-	contextHistory := []schema.Message{
-		systemMsg,
-		{
-			Role:    schema.RoleUser,
-			Content: userPrompt,
-		},
-	}
+	composer := ctxpkg.NewPromptComposer(session.WorkDir)
+	systemMsg := composer.Build()
 
 	turnCount := 0
 
@@ -54,7 +45,10 @@ func (e *AgentEngine) Run(c context.Context, userPrompt string, reporter Reporte
 		turnCount++
 		log.Printf("[Engine] 第 %d 轮对话开始\n", turnCount)
 
-		availableTools := e.registry.GetAvailableTools()
+		var contextHistory []schema.Message
+		contextHistory = append(contextHistory, systemMsg)
+		workingMemory := session.GetWorkingMemory(6)
+		contextHistory = append(contextHistory, workingMemory...)
 
 		if e.EnableThinking {
 			thinkResp, err := e.provider.Generate(c, contextHistory, nil)
@@ -64,24 +58,24 @@ func (e *AgentEngine) Run(c context.Context, userPrompt string, reporter Reporte
 
 			if thinkResp.Content != "" {
 				log.Printf("[Engine] 🧠 Thinking... %s\n", thinkResp.Content)
+				
+				session.Append(*thinkResp)
 				contextHistory = append(contextHistory, *thinkResp)
 
-				// 【触发 Reporter】: 将思考过程输出到外部（如飞书折叠面板）
-				if reporter != nil {
-					reporter.OnThinking(c, thinkResp.Content)
-				}
+				reporter.OnThinking(c, thinkResp.Content)
 			}
 		}
 
+		availableTools := e.registry.GetAvailableTools()
 		actionResp, err := e.provider.Generate(c, contextHistory, availableTools)
 		if err != nil {
 			return fmt.Errorf("[Engine] 行动阶段生成失败: %w", err)
 		}
 
+		session.Append(*actionResp)
 		contextHistory = append(contextHistory, *actionResp)
 
-		if actionResp.Content != "" && reporter != nil {
-			// 【触发 Reporter】: 输出阶段性总结或最终回复
+		if actionResp.Content != "" {
 			reporter.OnMessage(c, actionResp.Content)
 			log.Printf("[Engine] 🤖 Speaking...: %s\n", actionResp.Content)
 		}
@@ -95,26 +89,18 @@ func (e *AgentEngine) Run(c context.Context, userPrompt string, reporter Reporte
 		observationMsgs := make([]schema.Message, len(actionResp.ToolCalls))
 
 		for i, toolCall := range actionResp.ToolCalls {
-			wg.Add(1) // 增加计数器
+			wg.Add(1)
 
 			go func(idx int, call schema.ToolCall) {
 				defer wg.Done()
 
-				if reporter != nil {
-					reporter.OnToolCall(c, call.Name, string(call.Arguments))
-				}
+				reporter.OnToolCall(c, call.Name, string(call.Arguments))
 
 				log.Printf("[Engine] 🔧 Acting...: %s, 参数: %s\n", toolCall.Name, string(toolCall.Arguments))
 
 				result := e.registry.Execute(c, toolCall)
 
-				if reporter != nil {
-					displayOutput := result.Output
-					if len(displayOutput) > 200 {
-						displayOutput = displayOutput[:200] + "... (已截断)"
-					}
-					reporter.OnToolResult(c, call.Name, displayOutput, result.IsError)
-				}
+				reporter.OnToolResult(c, call.Name, result.DisplayOutput(), result.IsError)
 
 				observationMsg := schema.Message{
 					Role:       schema.RoleUser,
@@ -127,9 +113,7 @@ func (e *AgentEngine) Run(c context.Context, userPrompt string, reporter Reporte
 
 		wg.Wait()
 
-		for _, obs := range observationMsgs {
-			contextHistory = append(contextHistory, obs)
-		}
+		session.Append(observationMsgs...)
 	}
 	return nil
 }
